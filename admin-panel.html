@@ -2,9 +2,8 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <title>Admin Panel - Login</title>
+  <title>Admin Panel Login</title>
 
-  <!-- SUPABASE CDN (HANYA 1x, JANGAN DUPLIKAT) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
@@ -14,17 +13,12 @@
       color: #fff;
       padding: 30px;
     }
-    h1 {
-      color: #ffcc00;
-    }
+    h1 { color: #ffcc00; }
     input, button {
       display: block;
       margin: 10px 0;
       padding: 10px;
       width: 250px;
-    }
-    button {
-      cursor: pointer;
     }
     table {
       width: 100%;
@@ -48,93 +42,68 @@
 <h1>🔐 Admin Login</h1>
 
 <div id="login-box">
-  <input type="email" id="email" placeholder="Email admin" />
-  <input type="password" id="password" placeholder="Password" />
+  <input id="email" type="email" placeholder="Email admin">
+  <input id="password" type="password" placeholder="Password">
   <button onclick="login()">Login</button>
-  <p id="login-msg"></p>
+  <p id="msg"></p>
 </div>
 
 <div id="panel" style="display:none;">
-  <h1>📋 Admin Klaim Bonus</h1>
+  <h1>📋 Klaim Bonus</h1>
   <table>
     <thead>
       <tr>
-        <th>User ID</th>
+        <th>User</th>
         <th>Deposit</th>
         <th>Status</th>
       </tr>
     </thead>
-    <tbody id="data">
-      <tr><td colspan="3">Loading...</td></tr>
-    </tbody>
+    <tbody id="data"></tbody>
   </table>
 </div>
 
 <script>
-  /* =========================
-     SUPABASE CLIENT (1x SAJA)
-     ========================= */
-  const supabase = window.supabase.createClient(
+  // ⛔ TIDAK pakai const supabase
+  window.sb = window.sb || window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
-  /* =========================
-     LOGIN FUNCTION
-     ========================= */
   async function login() {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    const msg = document.getElementById("login-msg");
+    const msg = document.getElementById("msg");
+    msg.innerText = "Login...";
 
-    msg.innerText = "Logging in...";
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+    const { error } = await window.sb.auth.signInWithPassword({
+      email: email.value,
+      password: password.value
     });
 
     if (error) {
-      msg.innerText = "❌ Login gagal: " + error.message;
+      msg.innerText = error.message;
       return;
     }
 
-    msg.innerText = "✅ Login berhasil";
+    msg.innerText = "Login sukses";
     document.getElementById("login-box").style.display = "none";
     document.getElementById("panel").style.display = "block";
-
     loadData();
   }
 
-  /* =========================
-     LOAD DATA BONUS
-     ========================= */
   async function loadData() {
-    const tbody = document.getElementById("data");
-
-    const { data, error } = await supabase
+    const { data } = await window.sb
       .from("bonus_claims")
       .select("*")
       .order("id", { ascending: false });
 
-    if (error) {
-      tbody.innerHTML = "<tr><td colspan='3'>ERROR LOAD DATA</td></tr>";
-      console.error(error);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='3'>Belum ada data</td></tr>";
-      return;
-    }
-
+    const tbody = document.getElementById("data");
     tbody.innerHTML = "";
-    data.forEach(row => {
+
+    data.forEach(r => {
       tbody.innerHTML += `
         <tr>
-          <td>${row.user_id}</td>
-          <td>${row.deposit_amount}</td>
-          <td>${row.status}</td>
+          <td>${r.user_id}</td>
+          <td>${r.deposit_amount}</td>
+          <td>${r.status}</td>
         </tr>
       `;
     });
