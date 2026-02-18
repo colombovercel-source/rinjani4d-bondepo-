@@ -1,32 +1,118 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Test Supabase</title>
+  <meta charset="UTF-8" />
+  <title>Klaim Bonus RINJANI4D</title>
+
+  <!-- SUPABASE CDN (HANYA 1 KALI, JANGAN DOBEL) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #0b1a2a, #122f4a);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .card {
+      background: #081420;
+      padding: 30px;
+      border-radius: 12px;
+      width: 320px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+    h1 {
+      text-align: center;
+      color: #ffcc00;
+      margin-bottom: 10px;
+    }
+    p {
+      text-align: center;
+      font-size: 14px;
+      color: #ccc;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+    }
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, #ffcc00, #ff9900);
+      font-weight: bold;
+    }
+    .msg {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 14px;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Test koneksi Supabase</h2>
-<button onclick="test()">Test</button>
+<div class="card">
+  <h1>🎁 Klaim Bonus</h1>
+  <p>Isi data dengan benar</p>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <input id="user_id" type="text" placeholder="User ID">
+  <input id="deposit" type="number" placeholder="Nominal Deposit (Rp)">
+
+  <button onclick="kirim()">Ajukan Klaim</button>
+
+  <div class="msg" id="msg"></div>
+</div>
+
 <script>
+  /* ===============================
+     SUPABASE CLIENT (AMAN)
+     =============================== */
   const supabaseClient = window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
-    "PASTE_ANON_KEY_KAMU"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
-  async function test() {
-    const { data, error } = await supabaseClient
+  async function kirim() {
+    const userId = document.getElementById("user_id").value.trim();
+    const deposit = document.getElementById("deposit").value.trim();
+    const msg = document.getElementById("msg");
+
+    msg.innerHTML = "⏳ Mengirim data...";
+
+    if (!userId || !deposit) {
+      msg.innerHTML = "❌ Lengkapi semua data";
+      return;
+    }
+
+    const { error } = await supabaseClient
       .from("bonus_claims")
-      .select("*");
+      .insert([
+        {
+          user_id: userId,
+          deposit_amount: Number(deposit),
+          status: "Pending"
+        }
+      ]);
 
     if (error) {
-      alert("ERROR: " + error.message);
       console.error(error);
+      msg.innerHTML = "❌ Gagal mengirim klaim";
     } else {
-      alert("BERHASIL! Data count: " + data.length);
-      console.log(data);
+      msg.innerHTML = "✅ Klaim berhasil dikirim";
+      document.getElementById("user_id").value = "";
+      document.getElementById("deposit").value = "";
     }
   }
 </script>
