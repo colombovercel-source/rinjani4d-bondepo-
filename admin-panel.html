@@ -2,26 +2,50 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Admin Panel</title>
+<title>Admin Panel - Klaim Bonus</title>
 <link rel="icon" href="data:,">
+
+<!-- SUPABASE CDN (HANYA SEKALI) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body { background:#0b1a2a; color:#fff; font-family:Arial; padding:30px }
+body {
+  background:#0b1a2a;
+  color:#fff;
+  font-family:Arial, sans-serif;
+  padding:30px;
+}
 h1 { color:#ffcc00 }
-select,button,input { padding:6px; margin:5px }
-table { width:100%; border-collapse:collapse; margin-top:15px }
-th,td { border:1px solid #1e3a5a; padding:8px; text-align:center }
-th { background:#122f4a }
-.approve { background:green; color:#fff }
-.reject { background:red; color:#fff }
-.undo { background:orange }
+select { padding:6px; margin-bottom:10px }
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+th, td {
+  border:1px solid #1e3a5a;
+  padding:8px;
+  text-align:center;
+}
+th {
+  background:#122f4a;
+  color:#ffcc00;
+}
+button {
+  padding:5px 10px;
+  cursor:pointer;
+  border:none;
+  border-radius:4px;
+}
+.approve { background:#2ecc71; color:#000 }
+.reject { background:#e74c3c; color:#fff }
+.undo { background:#f1c40f; color:#000 }
 </style>
 </head>
 
 <body>
 
-<h1>📋 Admin Klaim Bonus</h1>
+<h1>📋 Admin Panel - Klaim Bonus</h1>
 
 <select id="filter">
   <option value="All">Semua</option>
@@ -35,37 +59,65 @@ th { background:#122f4a }
 <table>
 <thead>
 <tr>
-  <th>User</th>
+  <th>User ID</th>
   <th>Deposit</th>
   <th>Status</th>
   <th>Admin</th>
   <th>Aksi</th>
 </tr>
 </thead>
-<tbody id="data"></tbody>
+<tbody id="data">
+<tr><td colspan="5">Loading...</td></tr>
+</tbody>
 </table>
 
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
 
+  /* =============================
+     SUPABASE CLIENT (SATU KALI)
+     ============================= */
   const supabase = window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
+  /* =============================
+     CEK LOGIN ADMIN
+     ============================= */
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) {
+    alert("Belum login admin");
+    return;
+  }
+  const adminEmail = auth.user.email;
+
   const filterEl = document.getElementById("filter");
   filterEl.addEventListener("change", loadData);
 
+  /* =============================
+     LOAD DATA
+     ============================= */
   async function loadData() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("bonus_claims")
       .select("*")
-      .order("id",{ascending:false});
+      .order("id", { ascending: false });
 
-    render(data);
+    if (error) {
+      console.error(error);
+      document.getElementById("data").innerHTML =
+        "<tr><td colspan='5'>Gagal load data</td></tr>";
+      return;
+    }
+
+    renderTable(data);
   }
 
-  function render(rows) {
+  /* =============================
+     RENDER TABLE
+     ============================= */
+  function renderTable(rows) {
     const tbody = document.getElementById("data");
     tbody.innerHTML = "";
 
@@ -75,13 +127,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     rows.forEach(r => {
       if (filter !== "All" && r.status !== filter) return;
 
-      if (r.status === "Approved") total += r.deposit_amount;
+      if (r.status === "Approved") {
+        total += r.deposit_amount;
+      }
 
       let aksi = "-";
       if (r.status === "Pending") {
         aksi = `
           <button class="approve" data-id="${r.id}">Approve</button>
-          <button class="reject" data-id="${r.id}">Reject</button>`;
+          <button class="reject" data-id="${r.id}">Reject</button>
+        `;
       } else {
         aksi = `<button class="undo" data-id="${r.id}">Undo</button>`;
       }
@@ -89,46 +144,63 @@ document.addEventListener("DOMContentLoaded", async () => {
       tbody.innerHTML += `
         <tr>
           <td>${r.user_id}</td>
-          <td>${r.deposit_amount}</td>
+          <td>${r.deposit_amount.toLocaleString()}</td>
           <td>${r.status}</td>
           <td>${r.approved_by || "-"}</td>
           <td>${aksi}</td>
-        </tr>`;
+        </tr>
+      `;
     });
 
     document.getElementById("totalApproved").innerText =
       "Total Approved: Rp " + total.toLocaleString();
-
-    bindActions();
   }
 
-  async function bindActions() {
-    const user = (await supabase.auth.getUser()).data.user;
+  /* =============================
+     EVENT DELEGATION (FIX UNDO!)
+     ============================= */
+  document.getElementById("data").addEventListener("click", async (e) => {
+    const id = e.target.dataset.id;
+    if (!id) return;
 
-    document.querySelectorAll(".approve").forEach(b =>
-      b.onclick = () => update(b.dataset.id,"Approved",user.email));
+    if (e.target.classList.contains("approve")) {
+      updateStatus(id, "Approved");
+    }
 
-    document.querySelectorAll(".reject").forEach(b =>
-      b.onclick = () => update(b.dataset.id,"Rejected",user.email));
+    if (e.target.classList.contains("reject")) {
+      updateStatus(id, "Rejected");
+    }
 
-    document.querySelectorAll(".undo").forEach(b =>
-      b.onclick = () => update(b.dataset.id,"Pending",null));
+    if (e.target.classList.contains("undo")) {
+      updateStatus(id, "Pending");
+    }
+  });
+
+  /* =============================
+     UPDATE STATUS
+     ============================= */
+  async function updateStatus(id, status) {
+    await supabase
+      .from("bonus_claims")
+      .update({
+        status,
+        approved_by: status === "Pending" ? null : adminEmail,
+        approved_at: status === "Pending" ? null : new Date()
+      })
+      .eq("id", id);
   }
 
-  async function update(id,status,admin) {
-    await supabase.from("bonus_claims").update({
-      status,
-      approved_by: admin,
-      approved_at: admin ? new Date() : null
-    }).eq("id",id);
-  }
-
-  // REALTIME
-  supabase.channel("realtime-admin")
-    .on("postgres_changes",
-      {event:"*",schema:"public",table:"bonus_claims"},
+  /* =============================
+     REALTIME (LIVE UPDATE)
+     ============================= */
+  supabase
+    .channel("bonus-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "bonus_claims" },
       () => loadData()
-    ).subscribe();
+    )
+    .subscribe();
 
   loadData();
 });
