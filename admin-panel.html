@@ -1,21 +1,24 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <title>Admin Panel - Klaim Bonus</title>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
+  <link rel="icon" href="data:,">
 
   <!-- SUPABASE CDN (HANYA 1x) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
       background: #0b1a2a;
       color: #fff;
+      font-family: Arial, sans-serif;
       padding: 30px;
     }
-    h1 {
-      color: #ffcc00;
+    h1 { color: #ffcc00; }
+    input, button {
+      padding: 8px;
+      margin: 5px 0;
     }
     table {
       width: 100%;
@@ -24,20 +27,10 @@
     }
     th, td {
       border: 1px solid #1e3a5a;
-      padding: 10px;
+      padding: 8px;
       text-align: center;
     }
-    th {
-      background: #122f4a;
-      color: #ffcc00;
-    }
-    button {
-      padding: 6px 12px;
-      cursor: pointer;
-    }
-    #loginBox {
-      max-width: 300px;
-    }
+    th { background: #122f4a; }
   </style>
 </head>
 
@@ -45,39 +38,38 @@
 
 <div id="loginBox">
   <h1>🔐 Admin Login</h1>
-  <input id="email" placeholder="Email" /><br><br>
-  <input id="password" type="password" placeholder="Password" /><br><br>
-  <button onclick="login()">Login</button>
-  <p id="loginMsg"></p>
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button id="loginBtn">Login</button>
+  <p id="msg"></p>
 </div>
 
-<div id="adminPanel" style="display:none">
-  <h1>📋 Admin Klaim Bonus</h1>
-
+<div id="panel" style="display:none">
+  <h1>📋 Klaim Bonus</h1>
   <table>
     <thead>
       <tr>
-        <th>User ID</th>
+        <th>User</th>
         <th>Deposit</th>
         <th>Status</th>
-        <th>Aksi</th>
       </tr>
     </thead>
-    <tbody id="data">
-      <tr><td colspan="4">Loading...</td></tr>
-    </tbody>
+    <tbody id="data"></tbody>
   </table>
 </div>
 
 <script>
-  /* ================= SUPABASE ================= */
+document.addEventListener("DOMContentLoaded", () => {
+
+  // ✅ SUPABASE DIDEFINISIKAN 1x
   const supabase = window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
-  /* ================= LOGIN ================= */
-  async function login() {
+  const loginBtn = document.getElementById("loginBtn");
+
+  loginBtn.addEventListener("click", async () => {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
 
@@ -86,16 +78,15 @@
     });
 
     if (error) {
-      document.getElementById("loginMsg").innerText = error.message;
-    } else {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("adminPanel").style.display = "block";
-      loadData();
-      listenRealtime();
+      document.getElementById("msg").innerText = error.message;
+      return;
     }
-  }
 
-  /* ================= LOAD DATA ================= */
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("panel").style.display = "block";
+    loadData();
+  });
+
   async function loadData() {
     const { data, error } = await supabase
       .from("bonus_claims")
@@ -106,60 +97,22 @@
     tbody.innerHTML = "";
 
     if (error) {
-      tbody.innerHTML = "<tr><td colspan='4'>ERROR LOAD</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='3'>ERROR</td></tr>";
       return;
     }
 
-    if (data.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='4'>Belum ada data</td></tr>";
-      return;
-    }
-
-    data.forEach(row => {
+    data.forEach(r => {
       tbody.innerHTML += `
         <tr>
-          <td>${row.user_id}</td>
-          <td>${row.deposit_amount}</td>
-          <td>${row.status}</td>
-          <td>
-            ${row.status === "Pending"
-              ? `<button onclick="approve('${row.id}')">Approve</button>`
-              : "-"}
-          </td>
+          <td>${r.user_id}</td>
+          <td>${r.deposit_amount}</td>
+          <td>${r.status}</td>
         </tr>
       `;
     });
   }
 
-  /* ================= APPROVE ================= */
-  async function approve(id) {
-    await supabase
-      .from("bonus_claims")
-      .update({ status: "Approved" })
-      .eq("id", id);
-  }
-
-  /* ================= REALTIME ================= */
-  function listenRealtime() {
-    supabase
-      .channel("bonus-claims-admin")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "bonus_claims" },
-        () => loadData()
-      )
-      .subscribe();
-  }
-
-  /* ================= AUTO LOGIN ================= */
-  supabase.auth.getSession().then(({ data }) => {
-    if (data.session) {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("adminPanel").style.display = "block";
-      loadData();
-      listenRealtime();
-    }
-  });
+});
 </script>
 
 </body>
