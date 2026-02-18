@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Admin Panel - Klaim Bonus</title>
 
-  <!-- SUPABASE CDN (HANYA 1x, JANGAN DUPLIKAT) -->
+  <!-- SUPABASE CDN (WAJIB HANYA 1x) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="icon" href="data:,">
 
   <style>
     body {
@@ -16,6 +18,10 @@
     }
     h1 {
       color: #ffcc00;
+    }
+    input, button {
+      padding: 8px;
+      margin: 5px;
     }
     table {
       width: 100%;
@@ -32,60 +38,90 @@
       color: #ffcc00;
     }
     button {
-      padding: 6px 12px;
       cursor: pointer;
-      font-weight: bold;
     }
-    .logout {
-      float: right;
-      background: #ff6b6b;
-      border: none;
+    #loginBox {
+      max-width: 300px;
+      margin: auto;
+      margin-top: 100px;
     }
   </style>
 </head>
 
 <body>
 
-<button class="logout" onclick="logout()">Logout</button>
-<h1>📋 Admin Panel – Klaim Bonus</h1>
+<!-- LOGIN -->
+<div id="loginBox">
+  <h1>🔐 Admin Login</h1>
+  <input id="email" type="email" placeholder="Email admin"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+  <p id="loginMsg"></p>
+</div>
 
-<table>
-  <thead>
-    <tr>
-      <th>User ID</th>
-      <th>Deposit</th>
-      <th>Status</th>
-      <th>Aksi</th>
-    </tr>
-  </thead>
-  <tbody id="data">
-    <tr><td colspan="4">Loading data...</td></tr>
-  </tbody>
-</table>
+<!-- ADMIN PANEL -->
+<div id="panel" style="display:none;">
+  <h1>📋 Admin Klaim Bonus</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Deposit</th>
+        <th>Status</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="data">
+      <tr><td colspan="4">Loading...</td></tr>
+    </tbody>
+  </table>
+
+  <br>
+  <button onclick="logout()">Logout</button>
+</div>
 
 <script>
-  /* =========================
-     SUPABASE CLIENT (1x)
-  ========================== */
+  /* ===============================
+     SUPABASE CLIENT (HANYA 1x)
+     =============================== */
   const supabase = window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
-  /* =========================
-     CEK LOGIN ADMIN
-  ========================== */
-  async function checkAuth() {
-    const { data } = await supabase.auth.getSession();
+  /* ===============================
+     AUTH
+     =============================== */
+  async function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
-    if (!data.session) {
-      window.location.href = "login.html";
-    }
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    document.getElementById("loginMsg").innerText =
+      error ? error.message : "Login berhasil...";
   }
 
-  /* =========================
-     LOAD DATA KLAIM
-  ========================== */
+  async function logout() {
+    await supabase.auth.signOut();
+    location.reload();
+  }
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session) {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("panel").style.display = "block";
+      loadData();
+    }
+  });
+
+  /* ===============================
+     LOAD DATA
+     =============================== */
   async function loadData() {
     const { data, error } = await supabase
       .from("bonus_claims")
@@ -96,7 +132,6 @@
     tbody.innerHTML = "";
 
     if (error) {
-      console.error(error);
       tbody.innerHTML = "<tr><td colspan='4'>ERROR LOAD DATA</td></tr>";
       return;
     }
@@ -113,46 +148,26 @@
           <td>${row.deposit_amount}</td>
           <td>${row.status}</td>
           <td>
-            ${
-              row.status === "Pending"
+            ${row.status === "Pending"
               ? `<button onclick="approve(${row.id})">Approve</button>`
-              : "-"
-            }
+              : "-"}
           </td>
         </tr>
       `;
     });
   }
 
-  /* =========================
-     APPROVE KLAIM
-  ========================== */
+  /* ===============================
+     APPROVE
+     =============================== */
   async function approve(id) {
-    const { error } = await supabase
+    await supabase
       .from("bonus_claims")
       .update({ status: "Approved" })
       .eq("id", id);
 
-    if (error) {
-      alert("Gagal approve");
-      console.error(error);
-      return;
-    }
-
     loadData();
   }
-
-  /* =========================
-     LOGOUT
-  ========================== */
-  async function logout() {
-    await supabase.auth.signOut();
-    window.location.href = "login.html";
-  }
-
-  // INIT
-  checkAuth();
-  loadData();
 </script>
 
 </body>
