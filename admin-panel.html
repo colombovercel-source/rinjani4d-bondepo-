@@ -5,6 +5,7 @@
 <title>Admin Panel - Klaim Bonus</title>
 <link rel="icon" href="data:,">
 
+<!-- SUPABASE CDN (SATU KALI SAJA) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -31,21 +32,20 @@ th {
   color:#ffcc00;
 }
 button {
-  padding:6px 12px;
+  padding:6px 10px;
   cursor:pointer;
   border:none;
   border-radius:4px;
-  margin:2px;
 }
-.approve { background:#2ecc71; color:#000 }
+.approve { background:#2ecc71; }
 .reject { background:#e74c3c; color:#fff }
-.undo { background:#f1c40f; color:#000 }
+.undo { background:#f1c40f; }
 </style>
 </head>
 
 <body>
 
-<h1>📋 Persetujuan Klaim Bonus</h1>
+<h1>📋 Persetujuan - Klaim Bonus</h1>
 
 <select id="filter">
   <option value="All">Semua</option>
@@ -54,7 +54,7 @@ button {
   <option value="Rejected">Rejected</option>
 </select>
 
-<h3 id="totalApproved">Total Approved: Rp 0</h3>
+<h3 id="total">Total Approved: Rp 0</h3>
 
 <table>
 <thead>
@@ -74,61 +74,56 @@ button {
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
 
-  /* =============================
-     SUPABASE CLIENT (SATU KALI)
-     ============================= */
+  // ===============================
+  // SUPABASE CLIENT (SATU KALI)
+  // ===============================
   const supabase = window.supabase.createClient(
     "https://lzjmyilduranngskrcyo.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
   );
 
-  /* =============================
-     CEK LOGIN ADMIN
-     ============================= */
+  // ===============================
+  // CEK LOGIN ADMIN
+  // ===============================
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) {
-    alert("❌ Admin belum login");
+    alert("❌ Belum login admin");
     return;
   }
   const adminEmail = auth.user.email;
 
-  document.getElementById("filter").addEventListener("change", loadData);
+  const tbody = document.getElementById("data");
+  const filter = document.getElementById("filter");
+  filter.addEventListener("change", loadData);
 
-  /* =============================
-     LOAD DATA
-     ============================= */
+  // ===============================
+  // LOAD DATA (PAKAI ID, BUKAN created_at)
+  // ===============================
   async function loadData() {
     const { data, error } = await supabase
       .from("bonus_claims")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("id", { ascending: false });
 
     if (error) {
       console.error(error);
-      document.getElementById("data").innerHTML =
-        "<tr><td colspan='5'>Gagal load data</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='5'>Gagal load data</td></tr>";
       return;
     }
 
-    renderTable(data);
+    render(data);
   }
 
-  /* =============================
-     RENDER TABLE
-     ============================= */
-  function renderTable(rows) {
-    const tbody = document.getElementById("data");
+  // ===============================
+  // RENDER TABLE
+  // ===============================
+  function render(rows) {
     tbody.innerHTML = "";
-
     let total = 0;
-    const filter = document.getElementById("filter").value;
 
     rows.forEach(r => {
-      if (filter !== "All" && r.status !== filter) return;
-
-      if (r.status === "Approved") {
-        total += r.deposit_amount;
-      }
+      if (filter.value !== "All" && r.status !== filter.value) return;
+      if (r.status === "Approved") total += r.deposit_amount;
 
       let aksi = "-";
       if (r.status === "Pending") {
@@ -151,59 +146,45 @@ document.addEventListener("DOMContentLoaded", async () => {
       `;
     });
 
-    document.getElementById("totalApproved").innerText =
+    document.getElementById("total").innerText =
       "Total Approved: Rp " + total.toLocaleString();
   }
 
-  /* =============================
-     EVENT DELEGATION
-     ============================= */
-  document.getElementById("data").addEventListener("click", async (e) => {
+  // ===============================
+  // AKSI BUTTON
+  // ===============================
+  tbody.addEventListener("click", async e => {
     const id = e.target.dataset.id;
     if (!id) return;
 
-    if (e.target.classList.contains("approve")) {
-      await updateStatus(id, "Approved");
-    }
-    if (e.target.classList.contains("reject")) {
-      await updateStatus(id, "Rejected");
-    }
-    if (e.target.classList.contains("undo")) {
-      await updateStatus(id, "Pending");
-    }
-  });
+    let status = null;
+    if (e.target.classList.contains("approve")) status = "Approved";
+    if (e.target.classList.contains("reject")) status = "Rejected";
+    if (e.target.classList.contains("undo")) status = "Pending";
 
-  /* =============================
-     UPDATE STATUS (FIXED)
-     ============================= */
-  async function updateStatus(id, status) {
-    const { error } = await supabase
+    if (!status) return;
+
+    await supabase
       .from("bonus_claims")
       .update({
-        status: status,
+        status,
         approved_by: status === "Pending" ? null : adminEmail,
         approved_at: status === "Pending" ? null : new Date()
       })
       .eq("id", id);
 
-    if (error) {
-      alert("❌ Gagal update status");
-      console.error(error);
-      return;
-    }
+    loadData();
+  });
 
-    loadData(); // WAJIB
-  }
-
-  /* =============================
-     REALTIME
-     ============================= */
+  // ===============================
+  // REALTIME
+  // ===============================
   supabase
-    .channel("bonus-realtime")
+    .channel("bonus-live")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "bonus_claims" },
-      () => loadData()
+      loadData
     )
     .subscribe();
 
