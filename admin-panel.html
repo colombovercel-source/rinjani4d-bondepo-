@@ -5,7 +5,6 @@
 <title>Admin Panel - Klaim Bonus</title>
 <link rel="icon" href="data:,">
 
-<!-- SUPABASE CDN (HANYA SEKALI) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -32,10 +31,11 @@ th {
   color:#ffcc00;
 }
 button {
-  padding:5px 10px;
+  padding:6px 12px;
   cursor:pointer;
   border:none;
   border-radius:4px;
+  margin:2px;
 }
 .approve { background:#2ecc71; color:#000 }
 .reject { background:#e74c3c; color:#fff }
@@ -45,7 +45,7 @@ button {
 
 <body>
 
-<h1>📋 Persetujuan  - Klaim Bonus</h1>
+<h1>📋 Persetujuan Klaim Bonus</h1>
 
 <select id="filter">
   <option value="All">Semua</option>
@@ -87,13 +87,12 @@ document.addEventListener("DOMContentLoaded", async () => {
      ============================= */
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) {
-    alert("Belum login admin");
+    alert("❌ Admin belum login");
     return;
   }
   const adminEmail = auth.user.email;
 
-  const filterEl = document.getElementById("filter");
-  filterEl.addEventListener("change", loadData);
+  document.getElementById("filter").addEventListener("change", loadData);
 
   /* =============================
      LOAD DATA
@@ -102,7 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { data, error } = await supabase
       .from("bonus_claims")
       .select("*")
-      .order("id", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error(error);
@@ -122,7 +121,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     tbody.innerHTML = "";
 
     let total = 0;
-    const filter = filterEl.value;
+    const filter = document.getElementById("filter").value;
 
     rows.forEach(r => {
       if (filter !== "All" && r.status !== filter) return;
@@ -157,41 +156,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   /* =============================
-     EVENT DELEGATION (FIX UNDO!)
+     EVENT DELEGATION
      ============================= */
   document.getElementById("data").addEventListener("click", async (e) => {
     const id = e.target.dataset.id;
     if (!id) return;
 
     if (e.target.classList.contains("approve")) {
-      updateStatus(id, "Approved");
+      await updateStatus(id, "Approved");
     }
-
     if (e.target.classList.contains("reject")) {
-      updateStatus(id, "Rejected");
+      await updateStatus(id, "Rejected");
     }
-
     if (e.target.classList.contains("undo")) {
-      updateStatus(id, "Pending");
+      await updateStatus(id, "Pending");
     }
   });
 
   /* =============================
-     UPDATE STATUS
+     UPDATE STATUS (FIXED)
      ============================= */
   async function updateStatus(id, status) {
-    await supabase
+    const { error } = await supabase
       .from("bonus_claims")
       .update({
-        status,
+        status: status,
         approved_by: status === "Pending" ? null : adminEmail,
         approved_at: status === "Pending" ? null : new Date()
       })
       .eq("id", id);
+
+    if (error) {
+      alert("❌ Gagal update status");
+      console.error(error);
+      return;
+    }
+
+    loadData(); // WAJIB
   }
 
   /* =============================
-     REALTIME (LIVE UPDATE)
+     REALTIME
      ============================= */
   supabase
     .channel("bonus-realtime")
