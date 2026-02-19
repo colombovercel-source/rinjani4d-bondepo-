@@ -2,28 +2,34 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Admin Panel</title>
+<title>Admin Panel Klaim Bonus</title>
 <link rel="icon" href="data:,">
 
+<!-- SUPABASE CDN (HANYA SEKALI) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{background:#0b1a2a;color:#fff;font-family:Arial;padding:30px}
+body{
+  background:#0b1a2a;
+  color:#fff;
+  font-family:Arial, sans-serif;
+  padding:30px
+}
 h1{color:#ffcc00}
-input,button{padding:8px;margin:5px 0}
-button{cursor:pointer}
-table{width:100%;border-collapse:collapse;margin-top:15px}
-th,td{border:1px solid #1e3a5a;padding:8px;text-align:center}
-th{background:#122f4a;color:#ffcc00}
+input,button,select{padding:8px;margin:5px 0}
+button{cursor:pointer;border:none;border-radius:4px}
 .approve{background:#2ecc71}
 .reject{background:#e74c3c;color:#fff}
 .undo{background:#f1c40f}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{border:1px solid #1e3a5a;padding:8px;text-align:center}
+th{background:#122f4a;color:#ffcc00}
 </style>
 </head>
 
 <body>
 
-<h1>Admin Login</h1>
+<h1>🔐 Persetujuan</h1>
 
 <div id="loginBox">
   <input id="email" placeholder="Email admin">
@@ -32,33 +38,46 @@ th{background:#122f4a;color:#ffcc00}
 </div>
 
 <div id="panel" style="display:none">
-  <h2>Admin Panel</h2>
+  <h2>📋 Klaim Bonus</h2>
+
+  <select id="filter">
+    <option value="All">Semua</option>
+    <option value="Pending" selected>Pending</option>
+    <option value="Approved">Approved</option>
+    <option value="Rejected">Rejected</option>
+  </select>
+
   <table>
     <thead>
       <tr>
         <th>User</th>
         <th>Deposit</th>
         <th>Status</th>
+        <th>Admin</th>
         <th>Aksi</th>
       </tr>
     </thead>
-    <tbody id="data"></tbody>
+    <tbody id="data">
+      <tr><td colspan="5">Loading...</td></tr>
+    </tbody>
   </table>
 </div>
 
 <script>
-/* === SUPABASE (SATU-SATUNYA) === */
+/* =============================
+   SUPABASE CLIENT (SATU-SATUNYA)
+   ============================= */
 const sb = window.supabase.createClient(
   "https://lzjmyilduranngskrcyo.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8m-1XYdK2J7Q"
 );
 
 let adminEmail = null;
 
-/* LOGIN */
+/* ================= LOGIN ================= */
 document.getElementById("loginBtn").addEventListener("click", async () => {
-  const email = emailInput.value;
-  const password = passwordInput.value;
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
 
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if(error){
@@ -68,59 +87,90 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
   init();
 });
 
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
-
-/* INIT */
+/* ================= INIT ================= */
 async function init(){
   const { data } = await sb.auth.getUser();
   if(!data.user) return;
 
   adminEmail = data.user.email;
-  loginBox.style.display="none";
-  panel.style.display="block";
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("panel").style.display="block";
+
+  document.getElementById("filter").onchange = loadData;
   loadData();
 }
 
-/* LOAD DATA */
+/* ================= LOAD DATA ================= */
 async function loadData(){
   const { data, error } = await sb
     .from("bonus_claims")
     .select("*")
     .order("created_at",{ascending:false});
 
+  const tbody = document.getElementById("data");
+  tbody.innerHTML="";
+
   if(error){
     console.error(error);
+    tbody.innerHTML="<tr><td colspan='5'>Gagal load data</td></tr>";
     return;
   }
 
-  dataEl.innerHTML="";
+  const filter = document.getElementById("filter").value;
+
   data.forEach(r=>{
-    dataEl.innerHTML+=`
+    if(filter!=="All" && r.status!==filter) return;
+
+    let aksi="-";
+    if(r.status==="Pending"){
+      aksi=`
+        <button class="approve" onclick="updateStatus('${r.id}','Approved')">✔</button>
+        <button class="reject" onclick="updateStatus('${r.id}','Rejected')">✖</button>
+      `;
+    }else{
+      aksi=`<button class="undo" onclick="updateStatus('${r.id}','Pending')">Undo</button>`;
+    }
+
+    tbody.innerHTML+=`
       <tr>
         <td>${r.user_id}</td>
         <td>${r.deposit_amount}</td>
         <td>${r.status}</td>
-        <td>
-          <button class="approve" onclick="update('${r.id}','Approved')">✔</button>
-          <button class="reject" onclick="update('${r.id}','Rejected')">✖</button>
-        </td>
+        <td>${r.approved_by||"-"}</td>
+        <td>${aksi}</td>
       </tr>
     `;
   });
 }
 
-const dataEl = document.getElementById("data");
-
-/* UPDATE */
-async function update(id,status){
-  await sb.from("bonus_claims")
-    .update({status,approved_by:adminEmail})
+/* ================= UPDATE STATUS ================= */
+async function updateStatus(id,status){
+  const { error } = await sb
+    .from("bonus_claims")
+    .update({
+      status: status,
+      approved_by: status==="Pending"?null:adminEmail,
+      approved_at: status==="Pending"?null:new Date()
+    })
     .eq("id",id);
+
+  if(error){
+    console.error(error);
+    alert("Update gagal");
+    return;
+  }
   loadData();
 }
 
-/* AUTO */
+/* ================= REALTIME ================= */
+sb.channel("bonus-live")
+  .on("postgres_changes",
+    {event:"*",schema:"public",table:"bonus_claims"},
+    loadData
+  )
+  .subscribe();
+
+/* AUTO LOGIN CHECK */
 init();
 </script>
 
