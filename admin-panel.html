@@ -2,153 +2,194 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Admin Panel - Klaim Bonus</title>
+<title>Admin Panel – Klaim Bonus</title>
 <link rel="icon" href="data:,">
 
+<!-- SUPABASE CDN (HANYA SEKALI, JANGAN TAMBAH LAGI) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body {
+body{
   background:#0b1a2a;
   color:#fff;
   font-family:Arial, sans-serif;
   padding:30px;
 }
-h1 { color:#ffcc00 }
-table {
-  width:100%;
-  border-collapse:collapse;
-  margin-top:15px;
-}
-th, td {
-  border:1px solid #1e3a5a;
-  padding:8px;
-  text-align:center;
-}
-th {
-  background:#122f4a;
-  color:#ffcc00;
-}
-button {
-  padding:5px 10px;
-  cursor:pointer;
-  border:none;
-  border-radius:4px;
-}
-.approve { background:#2ecc71; }
-.reject { background:#e74c3c; color:#fff; }
-.undo { background:#f1c40f; }
+h1{color:#ffcc00}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{border:1px solid #1e3a5a;padding:8px;text-align:center}
+th{background:#122f4a;color:#ffcc00}
+button{padding:6px 12px;border:none;border-radius:4px;cursor:pointer}
+.approve{background:#2ecc71;color:#000}
+.reject{background:#e74c3c;color:#fff}
+.undo{background:#f1c40f;color:#000}
+#loginBox{max-width:300px}
+input{width:100%;padding:8px;margin-bottom:10px}
+select{padding:6px}
 </style>
 </head>
 
 <body>
 
-<h1>📋 Persetujuan – Klaim Bonus</h1>
+<h1>📋 Persetujuan Klaim Bonus</h1>
 
-<table>
-<thead>
-<tr>
-  <th>User</th>
-  <th>Deposit</th>
-  <th>Status</th>
-  <th>Admin</th>
-  <th>Aksi</th>
-</tr>
-</thead>
-<tbody id="data">
-<tr><td colspan="5">Loading...</td></tr>
-</tbody>
-</table>
+<!-- LOGIN -->
+<div id="loginBox">
+  <input id="email" placeholder="Email admin">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+</div>
+
+<!-- PANEL -->
+<div id="panel" style="display:none">
+
+  <select id="filter">
+    <option value="All">Semua</option>
+    <option value="Pending" selected>Pending</option>
+    <option value="Approved">Approved</option>
+    <option value="Rejected">Rejected</option>
+  </select>
+
+  <h3 id="total">Total Approved: Rp 0</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Deposit</th>
+        <th>Status</th>
+        <th>Admin</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="data">
+      <tr><td colspan="5">Loading...</td></tr>
+    </tbody>
+  </table>
+
+</div>
 
 <script>
-const supabase = window.supabase.createClient(
+/* =====================================================
+   SUPABASE CLIENT (ANTI DUPLIKAT – PALING PENTING)
+   ===================================================== */
+window.sb = window.sb || window.supabase.createClient(
   "https://lzjmyilduranngskrcyo.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6am15aWxkdXJhbm5nc2tyY3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMzU1NjUsImV4cCI6MjA4NjgxMTU2NX0.ybyZTOLYGMOjM_SucsfpsVU3WaL8qVY4m-1XYdK2J7Q"
 );
+const supabase = window.sb;
 
-async function checkLogin() {
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) {
-    alert("Admin belum login");
-    location.href = "/login.html";
+let adminEmail = null;
+
+/* ================= LOGIN ================= */
+async function login(){
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if(error){
+    alert("Login gagal");
+    return;
   }
-  return data.user.email;
+  init();
 }
 
-async function loadData() {
+/* ================= INIT ================= */
+async function init(){
+  const { data } = await supabase.auth.getUser();
+  if(!data.user) return;
+
+  adminEmail = data.user.email;
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("panel").style.display="block";
+
+  document.getElementById("filter").onchange = loadData;
+  loadData();
+}
+
+/* ================= LOAD DATA ================= */
+async function loadData(){
   const { data, error } = await supabase
     .from("bonus_claims")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at",{ascending:false});
 
-  const tbody = document.getElementById("data");
-  tbody.innerHTML = "";
-
-  if (error) {
+  if(error){
     console.error(error);
-    tbody.innerHTML = "<tr><td colspan='5'>Gagal load data</td></tr>";
+    document.getElementById("data").innerHTML =
+      "<tr><td colspan='5'>Gagal load data</td></tr>";
     return;
   }
 
-  data.forEach(r => {
-    let aksi = "-";
-    if (r.status === "Pending") {
-      aksi = `
-        <button class="approve" data-id="${r.id}">Approve</button>
-        <button class="reject" data-id="${r.id}">Reject</button>
+  render(data);
+}
+
+/* ================= RENDER ================= */
+function render(rows){
+  const tbody = document.getElementById("data");
+  tbody.innerHTML="";
+  let total=0;
+  const filter=document.getElementById("filter").value;
+
+  rows.forEach(r=>{
+    if(filter!=="All" && r.status!==filter) return;
+    if(r.status==="Approved") total+=r.deposit_amount;
+
+    let aksi="-";
+    if(r.status==="Pending"){
+      aksi=`
+        <button class="approve" onclick="updateStatus('${r.id}','Approved')">Approve</button>
+        <button class="reject" onclick="updateStatus('${r.id}','Rejected')">Reject</button>
       `;
-    } else {
-      aksi = `<button class="undo" data-id="${r.id}">Undo</button>`;
+    }else{
+      aksi=`<button class="undo" onclick="updateStatus('${r.id}','Pending')">Undo</button>`;
     }
 
-    tbody.innerHTML += `
+    tbody.innerHTML+=`
       <tr>
         <td>${r.user_id}</td>
-        <td>${Number(r.deposit_amount).toLocaleString()}</td>
+        <td>${r.deposit_amount.toLocaleString()}</td>
         <td>${r.status}</td>
-        <td>${r.approved_by || "-"}</td>
+        <td>${r.approved_by||"-"}</td>
         <td>${aksi}</td>
       </tr>
     `;
   });
+
+  document.getElementById("total").innerText =
+    "Total Approved: Rp "+total.toLocaleString();
 }
 
-async function updateStatus(id, status, admin) {
-  await supabase
+/* ================= UPDATE ================= */
+async function updateStatus(id,status){
+  const { error } = await supabase
     .from("bonus_claims")
     .update({
       status,
-      approved_by: status === "Pending" ? null : admin,
-      approved_at: status === "Pending" ? null : new Date()
+      approved_by: status==="Pending"?null:adminEmail,
+      approved_at: status==="Pending"?null:new Date()
     })
-    .eq("id", id);
+    .eq("id",id);
+
+  if(error){
+    console.error(error);
+    alert("Gagal update");
+    return;
+  }
+  loadData();
 }
 
-document.getElementById("data").addEventListener("click", async e => {
-  const id = e.target.dataset.id;
-  if (!id) return;
-
-  const admin = await checkLogin();
-
-  if (e.target.classList.contains("approve"))
-    updateStatus(id, "Approved", admin);
-
-  if (e.target.classList.contains("reject"))
-    updateStatus(id, "Rejected", admin);
-
-  if (e.target.classList.contains("undo"))
-    updateStatus(id, "Pending", admin);
-});
-
+/* ================= REALTIME ================= */
 supabase
   .channel("bonus-live")
   .on("postgres_changes",
-    { event:"*", schema:"public", table:"bonus_claims" },
+    {event:"*",schema:"public",table:"bonus_claims"},
     loadData
   )
   .subscribe();
 
-checkLogin().then(loadData);
+/* AUTO INIT */
+init();
 </script>
 
 </body>
